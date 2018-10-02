@@ -60,7 +60,9 @@ contract('MerkleAirdrop', function(accs) {
 		leafsArray.push(roles.user3 + ' 99');
 		leafsArray.push(roles.user4 + ' 66');
         merkleTree = new MerkleTree(leafsArray);
-        merkleRootHex = merkleTree.getHexRoot();
+		merkleRootHex = merkleTree.getHexRoot();
+		
+		console.log("MerkleTreeHexRoot: ",merkleRootHex);
 
 		// uncomment here to receive a file with addresses, similar to real file, provided by user
 		// be careful with big list sizes, use concatenation to join them
@@ -86,6 +88,10 @@ contract('MerkleAirdrop', function(accs) {
 			let leaf = leafsArray[i];
 
 			let merkle_proof = await merkleTree.getHexProof(leaf);
+
+			console.log("Leaf:",leaf);
+			console.log("^Merkle Proof:"+merkle_proof);
+
 			
 			// await l("For string '" + leaf + "', and leaf: '" + '0x' + sha3(leaf).toString('hex') + "' generated proof: " + JSON.stringify(merkle_proof) );
 			let userAddress = leaf.split(" ")[0];
@@ -94,10 +100,33 @@ contract('MerkleAirdrop', function(accs) {
 			let airdropContractBalance = await mintableToken.balanceOf(merkleAirdrop.address);
 			let userTokenBalance = await mintableToken.balanceOf(userAddress);
 
-			assert.isOk(await merkleAirdrop.getTokensByMerkleProof(merkle_proof, userAddress, numTokens), 'getTokensByMerkleProof() did not return true for a valid proof');
+			let getTokensByMerkleProof = await merkleAirdrop.getTokensByMerkleProof(merkle_proof, userAddress, numTokens);
+			//console.log(getTokensByMerkleProof,"getTokensByMerkleProof");
 
-			assertBnEq(await mintableToken.balanceOf(merkleAirdrop.address), airdropContractBalance.minus(numTokens), "balance of airdrop contract was not decreased by numTokens");
-			assertBnEq(await mintableToken.balanceOf(userAddress), userTokenBalance.plus(numTokens), "balance of user was not increased by numTokens");
+
+			let airdropTokenBalance =  await mintableToken.balanceOf(merkleAirdrop.address);
+			let airdropContractBalanceT = await airdropContractBalance.minus(numTokens);
+
+
+			let userTokenBalanceAfterAirDrop = await mintableToken.balanceOf(userAddress)
+			let oldUserTokenBalPlusNewTokens = await userTokenBalance.plus(numTokens);
+
+			console.log("userAddress", userAddress);
+			console.log("userTokenBalance", userTokenBalance);
+			console.log("numTokens", numTokens);
+
+			console.log("airdropTokenBalance",airdropTokenBalance);
+			console.log("airdropContractBalance",airdropContractBalanceT);
+
+			console.log("airDropTokenUserBal",userTokenBalanceAfterAirDrop);
+			console.log("userTokenBalance",oldUserTokenBalPlusNewTokens);
+
+
+			assert.isOk(getTokensByMerkleProof, 'getTokensByMerkleProof() did not return true for a valid proof');
+
+			assertBnEq(airdropTokenBalance, airdropContractBalanceT, "balance of airdrop contract was not decreased by numTokens");
+			assertBnEq(userTokenBalanceAfterAirDrop, oldUserTokenBalPlusNewTokens, "balance of user was not increased by numTokens");
+			console.log("--------------------------------------------");
 		}
 	});
 
