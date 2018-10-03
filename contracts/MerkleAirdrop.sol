@@ -33,10 +33,9 @@ contract MerkleAirdrop {
     mapping (address => bool) spent;
     event AirdropTransfer(address addr, uint256 num);
 
-    constructor(address _tokenContract, bytes32 _merkleRoot) public {
+    constructor(address _tokenContract) public {
         owner = msg.sender;
         tokenContract = MintableToken(_tokenContract);
-        merkleRoot = _merkleRoot;
     }
 
 
@@ -112,7 +111,7 @@ contract MerkleAirdrop {
         for (i = 0; i < _bc.length; i++) babcde[k++] = _bc[i];
         for (i = 0; i < _bd.length; i++) babcde[k++] = _bd[i];
 
-        return bytes32(keccak256(abcde));
+        return bytes32(keccak256(abi.encodePacked(abcde)));
     }
 
 
@@ -127,7 +126,7 @@ contract MerkleAirdrop {
 
         spent[_who] = true;
 
-        if (tokenContract.transfer(_who, _amount) == true) {
+        if (tokenContract.mint(_who, _amount) == true) {
             emit AirdropTransfer(_who, _amount);
             return true;
         }
@@ -135,7 +134,7 @@ contract MerkleAirdrop {
         require(false);
     }
 
-    function checkProof(bytes32[] proof, bytes32 hash) view internal returns (bool) {
+    function checkProof(bytes32[] proof, bytes32 hash) view public returns (bool) {
         bytes32 el;
         bytes32 h = hash;
 
@@ -143,12 +142,62 @@ contract MerkleAirdrop {
             el = proof[i];
 
             if (h < el) {
-                h = keccak256(h, el);
+                h = keccak256(abi.encodePacked(h, el));
             } else {
-                h = keccak256(el, h);
+                h = keccak256(abi.encodePacked(el, h));
             }
         }
 
         return h == merkleRoot;
     }
 }
+
+
+
+/*
+
+abiDecoder = require('abi-decoder');
+abiDecoder.addABI(MerkleAirdrop.abi);
+eth = web3.eth;
+
+accs = web3.eth.accounts;
+
+leafsArray = [];
+leafsArray.push(accs[0] + ' 100');
+leafsArray.push(accs[1] + ' 88');
+leafsArray.push(accs[2] + ' 99');
+leafsArray.push(accs[3]+ ' 66');
+
+MerkleTree = require('./test/helpers/merkleTree.js')
+merkleTree = new MerkleTree(leafsArray);
+merkleProof = merkleTree.getHexProof(leafsArray[0]);
+
+merkleDrop = MerkleAirdrop.at(MerkleAirdrop.address);
+merkleDrop.setRoot(merkleTree.getHexRoot());
+
+mintToken = MintableToken.at(MintableToken.address);
+mintToken.balanceOf(accs[0])
+
+txHash = merkleDrop.getTokensByMerkleProof(merkleProof, accs[0], 100);
+txHash.then((x)=>{txHash=x.tx});
+txHashR = eth.getTransactionReceipt(txHash);
+
+der = abiDecoder.decodeLogs(txHashR.logs)
+der[0].events
+
+------------------
+
+leafsArray.push(accs[4]+ ' 100');
+merkleTree = new MerkleTree(leafsArray);
+merkleProof = merkleTree.getHexProof(leafsArray[4]);
+merkleDrop.setRoot(merkleTree.getHexRoot());
+txHash = merkleDrop.getTokensByMerkleProof(merkleProof, accs[4], 100);
+txHash.then((x)=>{txHash=x.tx});
+txHashR = eth.getTransactionReceipt(txHash);
+
+der = abiDecoder.decodeLogs(txHashR.logs)
+der[0].events
+
+
+
+*/

@@ -29,6 +29,8 @@
     "truffle": "^4.1.13"
   },
   "dependencies": {
+    "abi-decoder": "^1.2.0",
+    "fs": "0.0.1-security",
     "web3": "^1.0.0-beta.34"
   }
 }
