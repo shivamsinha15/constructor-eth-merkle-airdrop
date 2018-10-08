@@ -9,7 +9,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND (express or implied).
  */
 
-pragma solidity ^0.4.23;
+pragma solidity ^0.4.24;
 
 /**
  * @title MerkleAirdrop
@@ -30,8 +30,9 @@ contract MerkleAirdrop {
     MintableToken tokenContract;
 
     // fix already minted addresses
-    mapping (address => bool) spent;
+    mapping (bytes32 => bool) claimed;
     event AirdropTransfer(address addr, uint256 num);
+    event EventLog(string func,string message);
 
     constructor(address _tokenContract) public {
         owner = msg.sender;
@@ -92,7 +93,7 @@ contract MerkleAirdrop {
         return string(bstr);
     }
 
-    function leaf_from_address_and_num_tokens(address _a, uint256 _n) internal pure returns(bytes32 ) {
+    function leaf_from_address_and_num_tokens(address _a, uint256 _n, uint256 nounce) internal pure returns(bytes32 ) {
         string memory prefix = "0x";
         string memory space = " ";
 
@@ -103,29 +104,54 @@ contract MerkleAirdrop {
         bytes memory _bb = bytes(addressToAsciiString(_a));
         bytes memory _bc = bytes(space);
         bytes memory _bd = bytes(uintToStr(_n));
-        string memory abcde = new string(_ba.length + _bb.length + _bc.length + _bd.length);
+        bytes memory _be = bytes(space);
+        bytes memory _bf = bytes(uintToStr(nounce));
+
+        //string memory abcde = new string(_ba.length + _bb.length + _bc.length + _bd.length);
+        string memory abcde = new string(_ba.length + _bb.length + _bc.length + _bd.length + _be.length + _bf.length);
+
+
         bytes memory babcde = bytes(abcde);
         uint k = 0;
-        for (uint i = 0; i < _ba.length; i++) babcde[k++] = _ba[i];
-        for (i = 0; i < _bb.length; i++) babcde[k++] = _bb[i];
-        for (i = 0; i < _bc.length; i++) babcde[k++] = _bc[i];
-        for (i = 0; i < _bd.length; i++) babcde[k++] = _bd[i];
 
+        k = fromStringToBytes(_ba,babcde,k);
+        k = fromStringToBytes(_bb,babcde,k);
+        k = fromStringToBytes(_bc,babcde,k);
+        k = fromStringToBytes(_bd,babcde,k);
+        k = fromStringToBytes(_be,babcde,k);
+        k = fromStringToBytes(_bf,babcde,k);
+        
         return bytes32(keccak256(abi.encodePacked(abcde)));
     }
 
+    function fromStringToBytes(bytes memory bytesToPlace, bytes concatBytes, uint k) pure internal returns (uint){
+        for (uint i = 0; i < bytesToPlace.length; i++) concatBytes[k++] = bytesToPlace[i];
+        return k;
+    }
 
-    function getTokensByMerkleProof(bytes32[] _proof, address _who, uint256 _amount) public returns(bool) {
-        require(spent[_who] != true);
+
+    function getClaimKey(address _who, uint256 _nounce) internal pure returns (bytes32) {
+        return keccak256(abi.encodePacked(_who, _nounce));
+    }
+
+
+
+    function getTokensByMerkleProof(bytes32[] _proof, address _who, uint256 _amount, uint256 _nounce) public returns(bool) {
+        bytes32 claimKey = getClaimKey(_who,_nounce);
+        if(claimed[claimKey] == true){
+            emit EventLog('Key Claimed Address:',addressToAsciiString(_who));
+            emit EventLog('Key Claimed Nounce:',uintToStr(_nounce));
+        }
+        require(claimed[claimKey] == false);
         require(_amount > 0);
         // require(msg.sender = _who); // makes not possible to mint tokens for somebody, uncomment for more strict version
 
-        if (!checkProof(_proof, leaf_from_address_and_num_tokens(_who, _amount))) {
+        if (!checkProof(_proof, leaf_from_address_and_num_tokens(_who, _amount, _nounce))) {
+             emit EventLog('Proof Not Valid:',uintToStr(_nounce));
             return false;
         }
 
-        spent[_who] = true;
-
+        claimed[claimKey] = true;
         if (tokenContract.mint(_who, _amount) == true) {
             emit AirdropTransfer(_who, _amount);
             return true;
@@ -178,7 +204,7 @@ merkleDrop.setRoot(merkleTree.getHexRoot());
 mintToken = MintableToken.at(MintableToken.address);
 mintToken.balanceOf(accs[0])
 
-txHash = merkleDrop.getTokensByMerkleProof(merkleProof, accs[0], 100);
+txHash = merkleDrop.getTokensByMerkleProof(merkleProof, accs[0], 100,1);
 txHash.then((x)=>{txHash=x.tx});
 txHashR = eth.getTransactionReceipt(txHash);
 

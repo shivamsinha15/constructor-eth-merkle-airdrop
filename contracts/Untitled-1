@@ -1,0 +1,77 @@
+    function leaf_from_address_and_num_tokens(address _a, uint256 _n, uint256 _nounce) internal pure returns(bytes32 ) {
+        string memory prefix = "0x";
+        string memory space = " ";
+
+        // file with addresses and tokens have this format: "0x123...DEF 999", where 999 - num tokens
+        // function simply calculates hash of such a string, given the target adddres and num_tokens
+
+/*
+        bytes memory _ba = bytes(prefix);
+        bytes memory _bb = bytes(addressToAsciiString(_a));
+        bytes memory _bc = bytes(space);
+        bytes memory _bd = bytes(uintToStr(_n));
+        bytes memory _be = bytes(space);
+        bytes memory _bf = bytes(uintToStr(_nounce));
+        string memory abcde = new string(_ba.length + _bb.length + _bc.length + _bd.length + _be.length + _bf.length);
+        bytes memory babcde = bytes(abcde);
+        uint k = 0;
+        for (uint i = 0; i < _ba.length; i++) babcde[k++] = _ba[i];
+        for (i = 0; i < _bb.length; i++) babcde[k++] = _bb[i];
+        for (i = 0; i < _bc.length; i++) babcde[k++] = _bc[i];
+        for (i = 0; i < _bd.length; i++) babcde[k++] = _bd[i];
+        for (i = 0; i < _be.length; i++) babcde[k++] = _bd[i];
+        for (i = 0; i < _bf.length; i++) babcde[k++] = _bd[i];
+
+        return bytes32(keccak256(abi.encodePacked(abcde)));
+        */
+        return bytes32(keccak256(abi.encodePacked("123")));
+    }
+    ///////////////////////////////////
+
+
+
+leafsArray = [];
+leafsArray.push(accs[0] + ' 100  1');
+leafsArray.push(accs[1] + ' 88  1');
+leafsArray.push(accs[2] + ' 99  1');
+leafsArray.push(accs[3]+ ' 66  1');
+
+txHash = merkleDrop.getTokensByMerkleProof(merkleProof, accs[0], 88,1);
+
+txHash = merkleDrop.getTokensByMerkleProof(merkleProof, accs[1], 88,1);
+
+txHashR = eth.getTransactionReceipt('0xa2fbf7b31166f326afe40c189b86a20a4a284b6aa6d76637cbf4c2ee729ef8c4');
+
+---------------------------------
+
+
+
+
+abiDecoder = require('abi-decoder');
+abiDecoder.addABI(MerkleAirdrop.abi);
+eth = web3.eth;
+
+accs = web3.eth.accounts;
+
+leafsArray = [];
+leafsArray.push(accs[0] + ' 100 1');
+leafsArray.push(accs[1] + ' 88 1');
+leafsArray.push(accs[2] + ' 99 1');
+leafsArray.push(accs[3]+ ' 66 1');
+
+MerkleTree = require('./test/helpers/merkleTree.js')
+merkleTree = new MerkleTree(leafsArray);
+merkleProof = merkleTree.getHexProof(leafsArray[0]);
+
+merkleDrop = MerkleAirdrop.at(MerkleAirdrop.address);
+merkleDrop.setRoot(merkleTree.getHexRoot());
+
+mintToken = MintableToken.at(MintableToken.address);
+mintToken.balanceOf(accs[0])
+
+txHash = merkleDrop.getTokensByMerkleProof(merkleProof, accs[0], 100,1);
+txHash.then((x)=>{txHash=x.tx});
+txHashR = eth.getTransactionReceipt(txHash);
+
+der = abiDecoder.decodeLogs(txHashR.logs)
+der[0].events
