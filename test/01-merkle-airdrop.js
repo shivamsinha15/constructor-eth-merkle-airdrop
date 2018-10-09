@@ -45,7 +45,7 @@ contract('MerkleAirdrop', function(accs) {
 		for(let i=0; i < n; i++) {
 			let acc = web3.eth.accounts.create(""+i);
 			// lowercase is important!
-			leafs.push('' + acc.address.toLowerCase() + ' ' + 100);
+			leafs.push('' + acc.address.toLowerCase() + ' ' + 100 + ' ' + 1);
 		}
 		return leafs;
 	}
@@ -55,10 +55,10 @@ contract('MerkleAirdrop', function(accs) {
         this.timeout(10000);
 
         leafsArray = generateLeafs(4);
-		leafsArray.push(roles.user1 + ' 100');
-		leafsArray.push(roles.user2 + ' 88');
-		leafsArray.push(roles.user3 + ' 99');
-		leafsArray.push(roles.user4 + ' 66');
+		leafsArray.push(roles.user1 + ' 100 1');
+		leafsArray.push(roles.user2 + ' 88 1');
+		leafsArray.push(roles.user3 + ' 99 1');
+		leafsArray.push(roles.user4 + ' 66 1');
         merkleTree = new MerkleTree(leafsArray);
 		merkleRootHex = merkleTree.getHexRoot();
 		
@@ -70,105 +70,59 @@ contract('MerkleAirdrop', function(accs) {
         // fs.writeFileSync(merkleRootHex, data);
 	});
 
-	it("tests deployment of airdrop contract and minting tokens for airdrop", async function() {
+	it("tests deployment of airdrop contract and and initial account allocation", async function() {
 		// deploy token contract, then give many tokens to deployed airdrop contract.
 		mintableToken = await MintableToken.new({from: roles.owner});
-		merkleAirdrop = await MerkleAirdrop.new(mintableToken.address, merkleRootHex, {from: roles.owner});
+		merkleAirdrop = await MerkleAirdrop.new(mintableToken.address, {from: roles.owner});
+		await merkleAirdrop.setRoot(merkleRootHex);
+
 		assert.equal(await merkleAirdrop.merkleRoot(), merkleTree.getHexRoot());
 
-		await mintableToken.mint(merkleAirdrop.address, TOTAL_TOKENS_FOR_AIRDROP, {from: roles.owner});
-		assert.equal(await merkleAirdrop.contractTokenBalance(), TOTAL_TOKENS_FOR_AIRDROP,);
+		let balBeforeAllocation = await mintableToken.balanceOf(accs[0])
+		assert.equal(0,balBeforeAllocation.toNumber());
+
     });
 
  	it("tests for success mint for allowed set of users", async function() {
 		// check correctness of mint for each in leafsArray
+
+		let expectedTotalTokenSupply=0;
+
 		for(let i = 0; i < leafsArray.length; i++) {
 
 			// string like "0x821aea9a577a9b44299b9c15c88cf3087f3b5544 99000000"
 			let leaf = leafsArray[i];
 
 			let merkle_proof = await merkleTree.getHexProof(leaf);
-
-			console.log("Leaf:",leaf);
-			console.log("^Merkle Proof:"+merkle_proof);
-
 			
 			// await l("For string '" + leaf + "', and leaf: '" + '0x' + sha3(leaf).toString('hex') + "' generated proof: " + JSON.stringify(merkle_proof) );
-			let userAddress = leaf.split(" ")[0];
-			let numTokens = leaf.split(" ")[1];
+			let leafSplit = leaf.split(" ");
+			let userAddress = leafSplit[0];
+			let numTokens = leafSplit[1];
+			let nounce = leafSplit[2];
+			expectedTotalTokenSupply += parseInt(numTokens);
+
+			console.log("userAddress",userAddress);
+			console.log("numTokens",numTokens);
+			console.log("nounce",nounce);
 
 			let airdropContractBalance = await mintableToken.balanceOf(merkleAirdrop.address);
 			let userTokenBalance = await mintableToken.balanceOf(userAddress);
 
-			let getTokensByMerkleProof = await merkleAirdrop.getTokensByMerkleProof(merkle_proof, userAddress, numTokens);
-			//console.log(getTokensByMerkleProof,"getTokensByMerkleProof");
+			let getTokensByMerkleProof = await merkleAirdrop.getTokensByMerkleProof(merkle_proof, userAddress, numTokens, nounce);
+			let balAfterAllocation = await mintableToken.balanceOf(userAddress);
+			balAfterAllocation = balAfterAllocation.toNumber();
+			console.log("userBalAfterAllocation",balAfterAllocation);
 
+			let currentMintableTokenSupply = (await mintableToken.totalSupply()).toNumber();
 
-			let airdropTokenBalance =  await mintableToken.balanceOf(merkleAirdrop.address);
-			let airdropContractBalanceT = await airdropContractBalance.minus(numTokens);
-
-
-			let userTokenBalanceAfterAirDrop = await mintableToken.balanceOf(userAddress)
-			let oldUserTokenBalPlusNewTokens = await userTokenBalance.plus(numTokens);
-
-			console.log("userAddress", userAddress);
-			console.log("userTokenBalance", userTokenBalance);
-			console.log("numTokens", numTokens);
-
-			console.log("airdropTokenBalance",airdropTokenBalance);
-			console.log("airdropContractBalance",airdropContractBalanceT);
-
-			console.log("airDropTokenUserBal",userTokenBalanceAfterAirDrop);
-			console.log("userTokenBalance",oldUserTokenBalPlusNewTokens);
-
-
+			console.log("currentMintableTokenSupply",currentMintableTokenSupply);
+			assert.equal(numTokens, balAfterAllocation, "AirDrop Balance was successfully claimed");
+			assert.equal(expectedTotalTokenSupply,currentMintableTokenSupply, "Total supply balance failed to increase");
+			assert.equal(numTokens, balAfterAllocation, "AirDrop Balance was successfully claimed");
 			assert.isOk(getTokensByMerkleProof, 'getTokensByMerkleProof() did not return true for a valid proof');
-
-			assertBnEq(airdropTokenBalance, airdropContractBalanceT, "balance of airdrop contract was not decreased by numTokens");
-			assertBnEq(userTokenBalanceAfterAirDrop, oldUserTokenBalPlusNewTokens, "balance of user was not increased by numTokens");
-			console.log("--------------------------------------------");
 		}
 	});
 
- 	it("tests for success mint for newly added users", async function() {
-		leafsArray.push(roles.nobody1 + ' 31');
-		leafsArray.push(roles.nobody2 + ' 32');
-		leafsArray.push(roles.nobody3 + ' 33');
-		leafsArray.push(roles.nobody4 + ' 34');
-
-		merkleTree = new MerkleTree(leafsArray);
-        merkleRootHex = merkleTree.getHexRoot();
-      	await merkleAirdrop.setRoot(merkleRootHex);
-		let newRoot = await merkleAirdrop.merkleRoot();
-      	assert.equal(newRoot, merkleRootHex, "updated merkle root '" + merkleRootHex, "' was not set in contract");
-
-		// check minting for new addresses (nobody1 and nobody2, added in previous test)
-
-		let leaf = roles.nobody1 + ' 31';
-		let merkle_proof = await merkleTree.getHexProof(leaf);
-		// await l("For string '" + leaf + "', and leaf: '" + '0x' + sha3(leaf).toString('hex') + "' generated proof: " + JSON.stringify(merkle_proof) );
-		let userAddress = leaf.split(" ")[0];
-		let numTokens = leaf.split(" ")[1];
-
-		let airdropContractBalance = await mintableToken.balanceOf(merkleAirdrop.address);
-		let userTokenBalance = await mintableToken.balanceOf(userAddress);
-
-		assert.isOk(await merkleAirdrop.getTokensByMerkleProof(merkle_proof, userAddress, numTokens), 'getTokensByMerkleProof() did not return true for a valid proof');
-		assertBnEq(await mintableToken.balanceOf(merkleAirdrop.address), airdropContractBalance.minus(numTokens), "balance of airdrop contract was not decreased by numTokens");
-		assertBnEq(await mintableToken.balanceOf(userAddress), userTokenBalance.plus(numTokens), "balance of user was not increased by numTokens");
-    });
-
-   	it("tests for claiming all tokens on contract's balance and selfdestruct", async function() {
-		let startAirdropContractBalance = await mintableToken.balanceOf(merkleAirdrop.address)
-		let startUserBalance = await mintableToken.balanceOf(roles.owner);
-
-		await expectThrow(merkleAirdrop.claim_rest_of_tokens_and_selfdestruct({from: roles.user1}), 'claiming rest of tokens by not owner did not broke call');
-		assert.isOk(await merkleAirdrop.claim_rest_of_tokens_and_selfdestruct({from: roles.owner}), 'claiming rest of tokens by owner did not return true');
-		assertBnEq(await mintableToken.balanceOf(roles.owner), startUserBalance.plus(startAirdropContractBalance), "balance of owned was not increased after caliming all rest of tokens");
-		assertBnEq(await mintableToken.balanceOf(merkleAirdrop.address), 0, "balance of contract after claiming tokens not zero");
-	});
-
-
-	// [FIXME] [FIXME] add more and more tests!!!
 
 });

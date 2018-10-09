@@ -31,6 +31,7 @@
   "dependencies": {
     "abi-decoder": "^1.2.0",
     "fs": "0.0.1-security",
+    "truffle-contract": "^3.0.6",
     "web3": "^1.0.0-beta.34"
   }
 }
