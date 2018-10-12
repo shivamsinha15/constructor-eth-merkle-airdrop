@@ -2,8 +2,9 @@ import {sha3, bufferToHex} from 'ethereumjs-util';
 
 class MerkleTree {
   constructor (elements) {
+    
     // Filter empty strings and hash elements
-    this.elements = elements.filter(el => el).map(el => sha3(el));
+    this.elements = elements.filter(el => el).map(el => sha3(el.toString()));
 
     // Deduplicate elements
     this.elements = this.bufDedup(this.elements);
